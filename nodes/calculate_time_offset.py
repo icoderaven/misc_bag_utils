@@ -21,6 +21,8 @@ class OffsetEstimator():
         # Get parameters when starting node from a launch file.
         rospy.loginfo('Parameter %s has value', rospy.resolve_name('~filename'))
         self.filename = rospy.get_param('~file_name')
+        self.new_bag_name = rospy.get_param('~new_file_name', default=os.path.splitext(self.filename)[0]+'_aligned.bag')
+        
         self.odom_topic = rospy.get_param('~odom_topic')
         self.imu_topic = rospy.get_param('~imu_topic')
         
@@ -33,7 +35,7 @@ class OffsetEstimator():
     
     def read_bag(self):
         #Get a list of all the topics in the rosbag
-        rospy.loginfo("[Bag Reader] Reading bag....")
+        rospy.loginfo("[OffsetEstimator] Reading bag" + self.filename)
         with rosbag.Bag(self.filename, 'r') as bag:
             for topic, msg, t in bag.read_messages():
                 if self.first_time == 0:
@@ -46,7 +48,7 @@ class OffsetEstimator():
                 if topic == self.imu_topic:
                     self.imu_data.append([t.to_sec(), np.array([msg.angular_velocity.x,msg.angular_velocity.y, msg.angular_velocity.z])])
 
-        rospy.loginfo("[Bag Reader] ...Done!")
+        rospy.loginfo("[OffsetEstimator] ...Done!")
 
     def plot_data(self, odom, imu):
         self.figure = plot.figure(0, figsize=(12,12))
@@ -66,8 +68,8 @@ class OffsetEstimator():
 
     def estimate_offset(self):
         if not self.odom_data or not self.imu_data:
-            rospy.logfatal('Did not read data topics!')
-            return 0
+            rospy.logfatal('[OffsetEstimator] Did not read data topics!')
+            exit(-1)
         #Find the correlation between the norms of the two velocities, and then find the index of the peak of the correlation to find the offset index
         odom_norm = []
         imu_norm = []
@@ -95,7 +97,7 @@ class OffsetEstimator():
         #@todo: The larger should be interpolated to the smaller of the two
         dT = np.mean(np.diff(imu_t))
         dT2 = np.mean(np.diff(odom_t))
-        rospy.loginfo('imu rate :: ' + str(1.0/ dT) + 'Hz, mocap rate :: ' + str(1.0 /dT2) +' Hz')
+        rospy.loginfo('[OffsetEstimator] imu rate :: ' + str(1.0/ dT) + 'Hz, mocap rate :: ' + str(1.0 /dT2) +' Hz')
 
         rate_adjusted_odom_norm = np.interp(imu_t, odom_t, odom_norm);
         
@@ -108,9 +110,25 @@ class OffsetEstimator():
         
         self.plot_data(rate_adjusted_odom_norm, imu_norm)
 
-        rospy.loginfo('Time shift (imu_t + t_d) found to be ' + str(time_shift) + ' sec')
+        rospy.loginfo('[OffsetEstimator] Time shift (imu_t + t_d) found to be ' + str(time_shift) + ' sec')
         return time_shift
 
+    def write_bag(self):
+        time_shift = self.estimate_offset()
+        rospy.loginfo("[OffsetEstimator] Writing Aligned bag to "+self.new_bag_name)
+        with rosbag.Bag(self.new_bag_name, 'w') as out_bag:
+            with rosbag.Bag(self.filename, 'r') as in_bag:
+                for topic, msg, t in in_bag.read_messages():
+                    msg_t = t
+                    if topic == self.odom_topic:
+                        msg.header.stamp = msg.header.stamp - rospy.Duration(time_shift)
+                        msg_t = msg_t - rospy.Duration(time_shift)
+
+                    out_bag.write(topic, msg, msg_t);
+
+        rospy.loginfo("[OffsetEstimator] ...Done!!!")
+
+                    
 
 if __name__ == '__main__':
     # Initialize the node and name it.
@@ -118,8 +136,9 @@ if __name__ == '__main__':
     try:
         EstimatorObject = OffsetEstimator()
         EstimatorObject.read_bag()
-        EstimatorObject.estimate_offset()
-        rospy.loginfo('Done!')
+        # EstimatorObject.estimate_offset()
+        EstimatorObject.write_bag()
+        rospy.loginfo('[OffsetEstimator] Fin.')
     except rospy.ROSInterruptException: 
         pass
     rospy.spin()

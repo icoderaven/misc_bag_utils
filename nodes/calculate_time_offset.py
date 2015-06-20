@@ -65,6 +65,9 @@ class OffsetEstimator():
 
 
     def estimate_offset(self):
+        if not self.odom_data or not self.imu_data:
+            rospy.logfatal('Did not read data topics!')
+            return 0
         #Find the correlation between the norms of the two velocities, and then find the index of the peak of the correlation to find the offset index
         odom_norm = []
         imu_norm = []
@@ -106,14 +109,12 @@ class OffsetEstimator():
         self.plot_data(rate_adjusted_odom_norm, imu_norm)
 
         rospy.loginfo('Time shift (imu_t + t_d) found to be ' + str(time_shift) + ' sec')
-        # pdb.set_trace()
+        return time_shift
 
 
-# Main function.    
 if __name__ == '__main__':
     # Initialize the node and name it.
     rospy.init_node('estimate_temporal_offset')
-    # Go to class functions that do all the heavy lifting. Do error checking.
     try:
         EstimatorObject = OffsetEstimator()
         EstimatorObject.read_bag()

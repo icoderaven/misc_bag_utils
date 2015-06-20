@@ -10,38 +10,28 @@ import numpy as np
 import pdb
 import matplotlib.pyplot as plot
 
-# Reading bag filename from command line or roslaunch parameter.
+# Reading bag input_file_name from command line or roslaunch parameter.
 import os
 import sys
 
  
 class OffsetEstimator():
-    # Must have __init__(self) function for a class, similar to a C++ class constructor.
+    
     def __init__(self):
-        # Get parameters when starting node from a launch file.
-        rospy.loginfo('Parameter %s has value', rospy.resolve_name('~filename'))
-        self.filename = rospy.get_param('~file_name')
-        self.new_bag_name = rospy.get_param('~new_file_name', default=os.path.splitext(self.filename)[0]+'_aligned.bag')
-        
-        self.odom_topic = rospy.get_param('~odom_topic')
-        self.imu_topic = rospy.get_param('~imu_topic')
-        
-        self.last_time = 0
-        self.first_time = 0
-
         self.odom_data = []
         self.imu_data = []
         
+    def __init__(self, odom_topic, imu_topic):
+        self.odom_data = []
+        self.imu_data = []
+        self.odom_topic = odom_topic
+        self.imu_topic = imu_topic
     
-    def read_bag(self):
+    def read_bag(self, file_name):
         #Get a list of all the topics in the rosbag
-        rospy.loginfo("[OffsetEstimator] Reading bag" + self.filename)
-        with rosbag.Bag(self.filename, 'r') as bag:
+        rospy.loginfo("[OffsetEstimator] Reading bag" + input_file_name)
+        with rosbag.Bag(input_file_name, 'r') as bag:
             for topic, msg, t in bag.read_messages():
-                if self.first_time == 0:
-                    self.first_time = t.to_sec()
-                self.last_time = t.to_sec()
-                
                 if topic == self.odom_topic:
                     self.odom_data.append([t.to_sec(), np.array([msg.twist.twist.angular.x,msg.twist.twist.angular.y,msg.twist.twist.angular.z])]);
 
@@ -54,10 +44,10 @@ class OffsetEstimator():
         self.figure = plot.figure(0, figsize=(12,12))
         self.axes = self.figure.add_subplot(111)
         self.axes.cla()
-        self.axes.plot(odom, 'r.', label='odom',markersize=1)
-        self.axes.plot(imu, 'bx', label='imu',markersize=1)
-        self.axes.set_xlabel('index')
-        self.axes.set_ylabel('norm angular velocity (rad/s)')
+        self.axes.plot(odom, 'r.', label=self.odom_topic,markersize=1)
+        self.axes.plot(imu, 'bx', label=self.imu_topic,markersize=1)
+        self.axes.set_xlabel('Index')
+        self.axes.set_ylabel('Norm angular velocity (rad/s)')
         # self.axes.set_xbound(-bound,bound)
         # self.axes.set_ybound(-bound,bound)
         self.axes.grid(True, axis='both')
@@ -113,11 +103,11 @@ class OffsetEstimator():
         rospy.loginfo('[OffsetEstimator] Time shift (imu_t + t_d) found to be ' + str(time_shift) + ' sec')
         return time_shift
 
-    def write_bag(self):
+    def write_bag(self, file_name, output_file_name):
         time_shift = self.estimate_offset()
-        rospy.loginfo("[OffsetEstimator] Writing Aligned bag to "+self.new_bag_name)
-        with rosbag.Bag(self.new_bag_name, 'w') as out_bag:
-            with rosbag.Bag(self.filename, 'r') as in_bag:
+        rospy.loginfo("[OffsetEstimator] Writing Aligned bag to "+output_file_name)
+        with rosbag.Bag(output_file_name, 'w') as out_bag:
+            with rosbag.Bag(input_file_name, 'r') as in_bag:
                 for topic, msg, t in in_bag.read_messages():
                     msg_t = t
                     if topic == self.odom_topic:
@@ -133,11 +123,17 @@ class OffsetEstimator():
 if __name__ == '__main__':
     # Initialize the node and name it.
     rospy.init_node('estimate_temporal_offset')
+    input_file_name = rospy.get_param('~input_file_name')
+    output_file_name = rospy.get_param('~output_file_name', default=os.path.splitext(input_file_name)[0]+'_aligned.bag')
+
+    odom_topic = rospy.get_param('~odom_topic')
+    imu_topic = rospy.get_param('~imu_topic')
+
     try:
-        EstimatorObject = OffsetEstimator()
-        EstimatorObject.read_bag()
+        EstimatorObject = OffsetEstimator(odom_topic, imu_topic)
+        EstimatorObject.read_bag(input_file_name)
         # EstimatorObject.estimate_offset()
-        EstimatorObject.write_bag()
+        EstimatorObject.write_bag(input_file_name, output_file_name)
         rospy.loginfo('[OffsetEstimator] Fin.')
     except rospy.ROSInterruptException: 
         pass

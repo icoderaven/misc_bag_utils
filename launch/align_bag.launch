@@ -1,13 +1,12 @@
 <launch>
-  <node name="align_bag" type="align_bag.py" pkg="misc_bag_utils">
-    <param name="input_file_name" value="" />
-    <param name="imu_topic" value="" />
+  <node name="align_bag" type="align_bag.py" pkg="misc_bag_utils" output="screen">
+    <param name="input_file_name" value="/home/icoderaven/raven_first_switching.bag" />
+    <param name="imu_topic" value="/raven/imu" />
 
     <param name="align_odom" value="true" />
-    <param name="num_odom" value="3" />
-    <param name="odom_topic1" value="" />
-    <param name="odom_topic2" value="" />
-    <param name="odom_topic3" value="" />
+    <param name="num_odom" value="2" />
+    <param name="odom_topic1" value="/raven/mocap/odom" />
+    <param name="odom_topic2" value="/raven/svo/odom" />
 
     <param name="align_camera" value="false" />
     <param name="imu_camera_dt" value="" />

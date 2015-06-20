@@ -100,8 +100,8 @@ class OffsetEstimator():
         index_shift = np.argmax(corr) - (np.size(imu_norm)-1)
         
 
-        # time_shift = self.imu_data[len(self.imu_data)/2 + index_shift][0] - self.imu_data[len(self.imu_data)/2][0];
-        time_shift = dT * index_shift
+        time_shift = self.imu_data[len(self.imu_data)/2 + index_shift][0] - self.imu_data[len(self.imu_data)/2][0];
+        # time_shift = dT * index_shift
         
         self.plot_data(rate_adjusted_odom_norm, imu_norm)
 
